@@ -92,14 +92,17 @@ start(CallBackMod, Name) ->
 %%--------------------------------------------------------------------
 init([CallBackMod0, Name]) ->
     CallBackMod = get_callback_mod(CallBackMod0),
-    GettextDir = get_gettext_dir(CallBackMod),
-    TableNameStr = atom_to_list(Name) ++ "_db",
-    TableName = list_to_atom(TableNameStr),
-    Cache = create_db(TableName, GettextDir),
-    {ok, #state{cache       = Cache, 
-		cbmod       = CallBackMod,
-		gettext_dir = GettextDir,
-		table_name  = TableName}}.
+    case get_gettext_dir(CallBackMod) of
+		no_dir -> {stop, no_gettext_directory};
+		GettextDir ->
+			TableNameStr = atom_to_list(Name) ++ "_db",
+			TableName = list_to_atom(TableNameStr),
+			Cache = create_db(TableName, GettextDir),
+			{ok, #state{cache       = Cache, 
+				cbmod       = CallBackMod,
+				gettext_dir = GettextDir,
+				table_name  = TableName}}
+	end.
 
     
 
@@ -120,8 +123,13 @@ get_gettext_dir(CallBackMod) ->
     case os:getenv("GETTEXT_DIR") of
 	false -> 
 	    case catch CallBackMod:gettext_dir() of
-		Dir when is_list(Dir) -> Dir;
-		_                  -> code:priv_dir(gettext) % fallback
+			Dir when is_list(Dir) -> Dir;
+			_ ->
+				% fallback 
+				case code:priv_dir(gettext) of
+					{error, bad_name} -> no_dir;
+					Dir -> Dir
+				end
 	    end;
 	Dir   -> Dir
     end.
